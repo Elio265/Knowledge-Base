@@ -1,5 +1,5 @@
 ---
-tags: [c++, stack, queue, priority_queue, 容器适配器]
+tags: [cpp, stack, queue, priority_queue, 容器适配器]
 created: 2026-06-24
 status: 已掌握
 ---

@@ -1,5 +1,5 @@
 ---
-tags: [c++, map, set, 关联容器]
+tags: [cpp, map, set, 关联容器]
 created: 2026-06-24
 status: 已掌握
 ---

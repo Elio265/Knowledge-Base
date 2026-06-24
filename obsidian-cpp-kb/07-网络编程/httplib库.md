@@ -1,5 +1,5 @@
 ---
-tags: [c++, httplib, HTTP, 网络编程]
+tags: [cpp, httplib, HTTP, 网络编程]
 created: 2026-06-24
 status: 需要补充
 ---

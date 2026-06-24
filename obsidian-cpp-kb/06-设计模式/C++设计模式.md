@@ -1,5 +1,5 @@
 ---
-tags: [c++, 设计模式]
+tags: [cpp, 设计模式]
 created: 2026-06-24
 status: 需要补充
 ---

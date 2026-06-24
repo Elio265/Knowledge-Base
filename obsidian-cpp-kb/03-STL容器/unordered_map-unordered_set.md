@@ -1,5 +1,5 @@
 ---
-tags: [c++, unordered_map, unordered_set, 关联容器, 哈希表]
+tags: [cpp, unordered_map, unordered_set, 关联容器, 哈希表]
 created: 2026-06-24
 status: 深入学习
 ---

@@ -1,5 +1,5 @@
 ---
-tags: [c++, string]
+tags: [cpp, string]
 created: 2026-06-24
 status: 已掌握
 ---

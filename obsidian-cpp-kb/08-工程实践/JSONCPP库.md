@@ -1,5 +1,5 @@
 ---
-tags: [c++, JSONCPP, JSON, 序列化]
+tags: [cpp, JSONCPP, JSON, 序列化]
 created: 2026-06-24
 status: 需要补充
 ---

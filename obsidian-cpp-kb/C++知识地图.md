@@ -1,5 +1,5 @@
 ---
-tags: [MOC, c++]
+tags: [MOC, cpp]
 created: 2026-06-24
 ---
 

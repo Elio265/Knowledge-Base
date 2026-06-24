@@ -1,5 +1,5 @@
 ---
-tags: [c++, list, 顺序容器]
+tags: [cpp, list, 顺序容器]
 created: 2026-06-24
 status: 已掌握
 ---
