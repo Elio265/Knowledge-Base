@@ -1,7 +1,7 @@
 ---
 tags: [MOC, cpp]
 created: 2026-06-24
-updated: 2026-06-25
+updated: 2026-07-01
 ---
 
 # C++ 知识地图
@@ -53,7 +53,7 @@ updated: 2026-06-25
 
 ## C
 
-- [[C语言杂谈]]
+- [[C语言基础细节]]
 
 ---
 
@@ -62,5 +62,5 @@ updated: 2026-06-25
 | 状态 | 知识点 |
 |------|--------|
 | 已掌握 | 类和对象、继承、string、vector、list、map-set、stack-queue-priority_queue、二叉搜索树 |
-| 学习中 | C++异常、AVL树、布隆过滤器、内存管理、模板、C++11新特性总览、智能指针、C++设计模式、不定参数解析、JSONCPP库、httplib库、C语言杂谈 |
+| 学习中 | C++异常、AVL树、布隆过滤器、内存管理、模板、C++11新特性总览、智能指针、C++设计模式、不定参数解析、JSONCPP库、httplib库、C语言基础细节 |
 | 深入理解 | 多态、红黑树、unordered_map-unordered_set |

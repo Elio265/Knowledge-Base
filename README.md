@@ -1,8 +1,6 @@
 # C++ 知识库
 
 > 深信服后台开发 | 社招准备 | Obsidian 长期维护
->
-> 原始博客：[CSDN C++专栏](https://blog.csdn.net/wzh18907434168/category_12239750.html)
 
 ## 目录结构
 
@@ -29,7 +27,6 @@ obsidian-cpp-kb/
 ├── 04-Project/              # 待建设
 ├── 05-Algorithm/             # 待建设
 ├── 06-Interview/             # 待建设
-└── .claude/rules.md         # AI 知识库管理规则
 ```
 
 ## 使用方式
@@ -50,7 +47,7 @@ obsidian-cpp-kb/
 
 ## AI 知识库管理规则
 
-见 [.claude/rules.md](.claude/rules.md)。核心原则：
+维护规则在隐藏配置文件 `.claude/rules.md` 中，不作为 Obsidian 笔记跳转。核心原则：
 
 - **先更新 MOC，再新增笔记**
 - **一个知识点 = 一个文件**

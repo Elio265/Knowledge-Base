@@ -1,0 +1,217 @@
+{
+  "main": {
+    "id": "7ae9fdf7daf2ac5d",
+    "type": "split",
+    "children": [
+      {
+        "id": "69d7147ccc94bb1b",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "b5e2a4f06f8b4f6e",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "obsidian-cpp-kb/03-Network/httplib库.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "httplib库"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "e83789bcb0e5f36f",
+    "type": "split",
+    "children": [
+      {
+        "id": "954f0bc44449b667",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "ea1e9742efc1abfa",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": true
+              },
+              "icon": "lucide-folder-closed",
+              "title": "文件列表"
+            }
+          },
+          {
+            "id": "bc770094bf02f40a",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "搜索"
+            }
+          },
+          {
+            "id": "71f39bbc790b33f2",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "书签"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "7b07369240a0132f",
+    "type": "split",
+    "children": [
+      {
+        "id": "a21124133af3459c",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "d506a993401f5237",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "obsidian-cpp-kb/03-Network/httplib库.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "httplib库 的反向链接列表"
+            }
+          },
+          {
+            "id": "a5d37f3666d7c647",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "obsidian-cpp-kb/03-Network/httplib库.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "httplib库 的出链列表"
+            }
+          },
+          {
+            "id": "428d2a07473d5cd6",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "标签"
+            }
+          },
+          {
+            "id": "c2feb2009834c62f",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "添加笔记属性"
+            }
+          },
+          {
+            "id": "d1ea1a570d10f8c4",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "obsidian-cpp-kb/03-Network/httplib库.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "httplib库 的大纲"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:打开快速切换": false,
+      "graph:查看关系图谱": false,
+      "canvas:新建白板": false,
+      "daily-notes:打开/创建今天的日记": false,
+      "templates:插入模板": false,
+      "command-palette:打开命令面板": false,
+      "bases:新建数据库": false,
+      "realclaudian:Open Claudian": false
+    }
+  },
+  "active": "ea1e9742efc1abfa",
+  "lastOpenFiles": [
+    "obsidian-cpp-kb/02-Linux/ICMP与网络诊断.md",
+    "obsidian-cpp-kb/02-Linux/TCP与UDP.md",
+    "obsidian-cpp-kb/02-Linux/浏览器输入URL到响应.md",
+    "obsidian-cpp-kb/02-Linux/HTTP与HTTPS基础.md",
+    "obsidian-cpp-kb/02-Linux/TCP可靠传输与拥塞控制.md",
+    "obsidian-cpp-kb/02-Linux/TCP粘包与应用层协议.md",
+    "obsidian-cpp-kb/02-Linux/TCP连接关闭.md",
+    "obsidian-cpp-kb/02-Linux/TCP服务端连接建立.md",
+    "obsidian-cpp-kb/02-Linux/Linux权限模型.md",
+    "obsidian-cpp-kb/02-Linux/Reactor模型.md",
+    "obsidian-cpp-kb/02-Linux/IO多路复用.md",
+    "obsidian-cpp-kb/02-Linux/文件描述符与重定向.md",
+    "obsidian-cpp-kb/02-Linux/inode与软硬链接.md",
+    "obsidian-cpp-kb/02-Linux/进程间通信.md",
+    "obsidian-cpp-kb/02-Linux/进程状态与回收.md",
+    "obsidian-cpp-kb/00-MOC/Linux知识地图.md",
+    "obsidian-cpp-kb/02-Linux/进程与线程.md",
+    "obsidian-cpp-kb/01-C++/OOP/C++异常.md",
+    "obsidian-cpp-kb/01-C++/OOP/类和对象.md",
+    "obsidian-cpp-kb/01-C++/OOP/继承.md",
+    "obsidian-cpp-kb/01-C++/OOP/多态.md",
+    "obsidian-cpp-kb/01-C++/Memory/内存管理.md",
+    "未命名.canvas",
+    "obsidian-cpp-kb/01-C++/Memory/智能指针.md",
+    "obsidian-cpp-kb/01-C++/C++11/C++11新特性总览.md",
+    "obsidian-cpp-kb/01-C++/C/C语言基础细节.md",
+    "obsidian-cpp-kb/01-C++/Template/不定参数解析.md"
+  ]
+}
