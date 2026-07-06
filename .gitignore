@@ -1,0 +1,7 @@
+# Obsidian local workspace state
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+
+# Obsidian community plugins are local tooling artifacts
+.obsidian/community-plugins.json
+.obsidian/plugins/
