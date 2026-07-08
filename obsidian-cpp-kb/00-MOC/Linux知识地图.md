@@ -1,7 +1,7 @@
 ---
 tags: [MOC, linux]
 created: 2026-06-25
-updated: 2026-07-06
+updated: 2026-07-07
 ---
 
 # Linux 知识地图
@@ -35,3 +35,5 @@ updated: 2026-07-06
 - [[浏览器输入URL到响应]]
 
 ## 工具链
+
+- [[Linux常用排查工具]]
