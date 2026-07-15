@@ -101,5 +101,4 @@ cr->parse(jsonStr.c_str(), jsonStr.c_str() + jsonStr.size(), &root, &err);
 5. 如何遍历一个嵌套的JSON对象？
 
 ## 关联知识
-- [[httplib库]]
 - [[不定参数解析]]

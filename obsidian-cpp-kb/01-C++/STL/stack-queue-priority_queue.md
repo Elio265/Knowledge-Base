@@ -159,6 +159,4 @@ priority_queue<Task> tasks;
 ## 关联知识
 - [[vector]]
 - [[list]]
-- [[deque]]
 - [[红黑树]]
-- [[堆与堆排序]]

@@ -155,6 +155,4 @@ ls.sort(greater<int>());      // 降序
 
 ## 关联知识
 - [[vector]]
-- [[forward_list]]
 - [[stack-queue-priority_queue]]
-- [[迭代器]]

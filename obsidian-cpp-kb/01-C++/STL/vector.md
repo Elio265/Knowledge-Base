@@ -128,6 +128,5 @@ vector 的迭代器就是原生指针 `T*` 的封装，因此支持 `it + n`、`
 ## 关联知识
 - [[string]]
 - [[list]]
-- [[迭代器]]
 - [[stack-queue-priority_queue]]
 - [[内存管理]]

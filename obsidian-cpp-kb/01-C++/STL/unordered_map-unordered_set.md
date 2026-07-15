@@ -201,6 +201,4 @@ vector<int> twoSum(vector<int>& nums, int target) {
 
 ## 关联知识
 - [[map-set]]
-- [[哈希表]]
-- [[哈希函数与哈希冲突]]
 - [[红黑树]]
