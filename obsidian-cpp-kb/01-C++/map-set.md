@@ -1,14 +1,14 @@
 ---
 tags: [cpp, map, set, 关联容器]
 created: 2026-06-24
-updated: 2026-06-25
-status: 已掌握
+updated: 2026-07-16
+status: 面试重点
 ---
 
 # map 和 set
 
 ## 一句话理解
-map 和 set 是 C++ 基于红黑树实现的有序关联容器，map 存储键值对、set 存储唯一键，均按严格弱排序自动排序，支持 O(log n) 的插入、删除和查找。
+map 和 set 是有序关联容器，map 存储键值对、set 存储唯一键，均按严格弱排序自动排序，支持 O(log n) 的插入、删除和查找。主流实现通常使用红黑树，但具体树结构不是标准强制的。
 
 ## 核心原理
 
@@ -130,7 +130,6 @@ for (auto it = low; it != up; ++it) cout << *it << " ";
 - **`count()` 在 map/set 中只返回 0/1**：只在 multiset/multimap 中才可能 >1。
 - **自定义比较必须满足严格弱排序**：
   - `!comp(a, b) && !comp(b, a)` 意味着 a == b。
-  - 不能只定义 `operator<` 而没有 `operator>`。
   - 比较函数必须一致，否则会导致未定义行为。
 - **迭代器失效**：map/set 的插入和删除**不会使其他迭代器失效**（只有被删除元素的迭代器失效），这与 vector 不同。
 - **红黑树不擅长随机访问**：不能通过下标（位置）访问元素，只能通过键。
@@ -144,6 +143,24 @@ for (auto it = low; it != up; ++it) cout << *it << " ";
 | 查找 | O(log n) |
 | `lower_bound` / `upper_bound` | O(log n) |
 | 遍历（迭代器递增） | O(n) 均摊 O(1) |
+
+### 查询接口选择
+
+| 接口 | key 不存在时 |
+| --- | --- |
+| `m[key]` | 插入默认构造的 value 并返回引用 |
+| `m.at(key)` | 抛 `std::out_of_range` |
+| `m.find(key)` | 返回 `end()`，不插入 |
+
+只读查询优先 `find`（C++20 也可用 `contains`），不要因 `operator[]` 意外插入元素。
+
+### 选型与范围查询
+
+- `set` 只保存唯一 key，用于去重和成员判断；`map` 还保存 key 对应的 value。
+- `multiset/multimap` 允许等价 key 重复；普通 `set/map` 的 key 唯一。
+- 需要 key 有序、范围查询或稳定 `O(log n)` 复杂度时使用 `map/set`；只追求平均查找性能时见 [[unordered_map-unordered_set]]。
+
+`lower_bound(k)` 返回第一个 `key >= k`，`upper_bound(k)` 返回第一个 `key > k`；用它们可遍历有序区间 `[L, R]`。
 
 ## 面试高频问题
 
@@ -169,6 +186,17 @@ for (auto it = low; it != up; ++it) cout << *it << " ";
    - `lower_bound(k)`：指向第一个 >= k 的元素。
    - `upper_bound(k)`：指向第一个 > k 的元素。
    - 用于范围查找，如统计 [a, b) 区间内的元素。
+7. **`operator[]`、`at()`、`find()` 如何选择？**
+   - `[]` 用于明确写入或累加；`at()` 要求 key 必须存在；只读查询用 `find()`。
+
+## 我的薄弱点
+
+- 需要巩固 `operator[]` 会插入默认值的副作用，以及 `lower_bound/upper_bound` 的精确边界。
+
+## 成长记录
+
+- 2026-07-16：能区分 map/set 的 key-value 与纯 key 语义，理解 multimap/multiset 允许重复 key。
+- 2026-07-16：掌握 map key 不可直接修改的原因，并能用范围边界完成有序区间查询。
 
 ## 关联知识
 - [[unordered_map-unordered_set]]

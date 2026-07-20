@@ -1,8 +1,8 @@
 ---
 tags: [cpp, stack, queue, priority_queue, 容器适配器]
 created: 2026-06-24
-updated: 2026-06-25
-status: 已掌握
+updated: 2026-07-17
+status: 面试重点
 ---
 
 # stack、queue、priority_queue
@@ -88,7 +88,7 @@ priority_queue<Task> tasks;
 ### stack / queue 的底层：deque
 
 - **deque（双端队列）** 是 stack 和 queue 的默认底层容器。
-- deque 底层由多个连续缓冲区（buffer）组成，由中控器（map）管理，支持 O(1) 的头尾插入删除，且**不会因扩容导致迭代器全部失效**（只影响特定缓冲区）。
+- deque 底层通常由多个缓冲区和索引结构组成，支持 O(1) 的头尾插入删除；具体对象布局和迭代器失效边界不要当成统一实现规则。
 - 选择 deque 作为默认底层容器是因为：它兼顾 `push_back`、`pop_back` 和（对 queue）`pop_front` 的高效，比 vector 更灵活（vector 没有 `pop_front`）。
 
 ### priority_queue 的底层：堆（heap）
@@ -99,6 +99,10 @@ priority_queue<Task> tasks;
   2. **`push_heap`**：在 `push_back` 后调整，将新元素上浮到正确位置。
   3. **`pop_heap`**：将堆顶与堆尾交换，然后下沉调整，再 `pop_back`。
 - **堆的物理存储**：用数组模拟完全二叉树——节点 i 的左子节点为 `2i+1`，右子节点为 `2i+2`，父节点为 `(i-1)/2`。
+
+### 优先级变化：延迟删除
+
+`priority_queue` 不提供按值查找、删除或原地修改优先级的接口。任务优先级变化时，常把带有新优先级和新版本号的条目再次入堆；取堆顶时通过外部 map/版本号判断是否过期，过期条目直接 `pop()` 丢弃。这种方案称为延迟删除，常用于定时器、任务调度和 Dijkstra。
 
 ## 常见应用场景
 
@@ -131,6 +135,7 @@ priority_queue<Task> tasks;
 - **priority_queue 不支持 `operator[]`**：不能像 vector 那样随机访问堆中元素。
 - **priority_queue 的 `top()` 返回 const 引用**：不能通过 top 修改元素值，否则会破坏堆结构。
 - **默认是大堆**：需要小堆时别忘记 `greater<T>`。
+- **复杂度**：`top()` 是 O(1)，`push()` 与 `pop()` 是 O(log n)，因为后两者需要调整堆。
 - **自定义类型的比较**：priority_queue 需要自定义比较时，比较严格弱排序必须满足（非自反、反对称、传递性）。
 - **时间复杂度**：
   - stack/queue：所有操作 O(1)。
@@ -142,7 +147,7 @@ priority_queue<Task> tasks;
    - 它们不直接实现数据结构，而是封装现有容器（deque/vector/list），只暴露符合特定数据访问语义的接口。
 
 2. **为什么 stack 和 queue 默认使用 deque 而不是 vector？**
-   - deque 同时支持 `push_back` 和 `pop_front`（queue 需要），且头尾插入效率均为 O(1)。vector 没有 `pop_front`。
+   - deque 同时支持 `push_back` 和 `pop_front`（queue 需要），且头尾插入效率均为 O(1)。stack 只需尾部操作，也可指定 vector，常有更好的连续内存局部性。
 
 3. **priority_queue 的底层实现原理？**
    - 基于堆（默认最大堆），用 vector 存储，通过 `make_heap`、`push_heap`、`pop_heap` 维护堆结构。
@@ -154,7 +159,16 @@ priority_queue<Task> tasks;
    - priority_queue 基于堆排序，是不稳定的。如果两个元素优先级相同，它们的出队顺序不确定。
 
 6. **如果让你实现一个支持动态更新优先级的 priority_queue，你会怎么做？**
-   - STL 的 priority_queue 不支持。可以用 `multiset` 或手写堆 + 索引哈希表（如 Dijkstra 中的可更新堆）。
+   - STL 的 priority_queue 不支持。可用延迟删除（重复入堆 + 版本号校验），或改用 multiset、手写堆 + 索引哈希表。
+
+## 我的薄弱点
+
+- 需要牢记 priority_queue 的 `pop()` 是 O(log n)，只有 `top()` 是 O(1)。
+
+## 成长记录
+
+- 2026-07-17：能区分 stack/queue/priority_queue 的访问规则与默认底层容器。
+- 2026-07-17：掌握小顶堆比较器、堆操作复杂度和优先级更新的延迟删除方案。
 
 ## 关联知识
 - [[vector]]
