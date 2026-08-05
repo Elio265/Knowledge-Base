@@ -18,6 +18,7 @@ obsidian-cpp-kb/
 │   ├── Linux知识地图.md
 │   ├── 网络知识地图.md
 │   ├── 数据库知识地图.md
+│   ├── Python知识地图.md
 │   ├── 项目知识地图.md
 │   └── 面试知识地图.md
 ├── 01-C++/
@@ -26,6 +27,7 @@ obsidian-cpp-kb/
 │   ├── vector.md             # STL 与容器选型
 │   └── ...                   # 其余 C++ 主题同层存放
 ├── 02-Linux/                # Linux系统编程、进程线程、I/O、TCP/IP基础
+├── 03-Python/               # Python 基础、并发、FastAPI/ASGI 与后端接口设计
 ├── 04-Project/              # 项目经验与面试表达
 ├── 05-Algorithm/            # 算法与数据结构补充
 ├── 06-Interview/            # 面试记录与复盘
@@ -36,6 +38,7 @@ obsidian-cpp-kb/
 
 - `01-C++/`：所有 C++ 主题同层存放，由 `C++知识地图` 负责分类和复习路线。
 - `02-Linux/`：进程线程、IPC、文件系统、权限、I/O 多路复用、TCP/HTTP 基础。
+- `03-Python/`：Python 基础高频考点、GIL 与 asyncio、FastAPI/ASGI、鉴权与 Token、游标分页等后端主题，与 `04-Project/` 管控面项目对应。
 - `07-Database/`：MySQL 索引、事务、日志、Redis 缓存与高并发问题。
 - `00-MOC/`：知识地图入口，负责学习路线和主题索引。
 

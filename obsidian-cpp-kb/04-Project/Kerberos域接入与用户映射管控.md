@@ -2,7 +2,7 @@
 tags: [project, kerberos, nfs, linux, python, mongodb, interview]
 status: 面试重点
 created: 2026-07-17
-updated: 2026-07-20
+updated: 2026-08-04
 ---
 
 # EDS NFSv4 Kerberos 域接入与用户映射管控
@@ -16,6 +16,15 @@ updated: 2026-07-20
 原有 NFS 共享仅支持 `sec=sys`，依赖客户端提供 UID/GID，无法接入企业 Kerberos 认证体系。我负责从需求分析、方案设计到核心开发和问题收口，完成了域管理、SPN/keytab、Principal 映射与 Ganesha 联动。
 
 管理员配置 Realm、KDC 和 SPN 策略后，系统以异步任务在全节点生成并验证 keytab，同步 `krb5.conf`、映射和 Ganesha 配置；客户端可用 `sec=krb5` 挂载。难点在于 KDC、数据库、节点配置和数据面的状态收敛，因此实现了回滚、互斥、健康检查和扩容同步。最终形成了从身份认证到文件权限生效的完整闭环。
+
+## 后端开发视角
+
+这个项目是管理面后端（Python/eventlet + MongoDB + 分布式节点编排），后端面试可讲点：
+
+- **分布式任务编排**：加域/退域拆成多阶段 Taskflow，普通异常逆序补偿（Saga 式），不是严格分布式事务；节点失联、进程退出时的边界要讲清。
+- **集群锁与收敛**：`nfs_export_mutex` TTL 约 600 秒、无续租与 owner token，失锁与宕机恢复的边界是高频追问点。
+- **状态与幂等**：数据库、KDC、节点配置、Ganesha 运行态四处状态需要收敛；当前不是逐节点阶段记录，部分成功可能残留。
+- **凭据安全**：RSA 密文入参、可逆加密存储、占位符不回显，但 `kadmin -w` 的 argv/日志暴露面要能讲清（见 [[鉴权与Token方案]]）。
 
 ## 认证与授权链路
 
@@ -179,8 +188,11 @@ Taskflow 在进程内普通异常时逆序补偿：清理 keytab、按归属删�
 4. 为什么加退域要和 NFS 共享操作共用集群锁？TTL 过期和宕机的边界是什么？
 5. 如何证明功能真的生效，而不只是 API 或配置写入成功？
 6. 你处理过什么问题？如何定位 Windows DNS 导致的 Kerberos 加域慢？
+7. 这个项目的异步任务模型（eventlet Taskflow）与 asyncio 有什么区别？
 
 ## 关联知识
 
 - [[Linux知识地图]]
 - [[项目知识地图]]
+- [[Python并发与asyncio]]
+- [[鉴权与Token方案]]

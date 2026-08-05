@@ -2,7 +2,7 @@
 tags: [project, ftds, samba, nfs-ganesha, performance, observability, cpp, interview]
 status: 持续核验
 created: 2026-07-29
-updated: 2026-07-29
+updated: 2026-08-04
 ---
 
 # 文件网关FTDS性能打点
@@ -133,6 +133,12 @@ NFS 侧 FTDS 当前仅覆盖 FSAL 层 `nfs_readv/nfs_writev` 两个点位，采�
 
 > [!warning] 简历使用前
 > 需补齐 NFS 个人提交证据，并核验 Samba OP `delay_time` 问题。未确认前，将简历表述收敛为“完成 Samba 接入与重构，参与 NFS 接入”，不要承诺所有 OP 指标准确上线。
+
+### 后端开发叙事
+
+这半年数据面经历在后端路线里的作用是证明“系统功底”：C++、并发、性能观测、协议边界，能支撑“懂底层的后端开发”这个定位。和管控面经历合起来讲一条主线：**存储产品后端——先在数据面做性能观测，后在管控面做网关与治理**。
+
+面试被质疑“C++ 经验只有半年”时，用这里沉淀的机制理解（原子聚合、IO 分桶、观测边界、枚举索引隔离）证明不是只会调用框架，而是能讲清设计与取舍。
 
 ## 高频追问
 

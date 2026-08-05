@@ -2,7 +2,7 @@
 tags: [project, sangbridge, ai, gateway, fastapi, vue, vcs, interview]
 status: 面试重点
 created: 2026-07-20
-updated: 2026-07-22
+updated: 2026-08-04
 ---
 
 # SangBridge AI统一接入与管理控制台
@@ -173,9 +173,22 @@ useCursorPagination + index + BranchTab + TagTab + CommitTab + DataTab
 
 当前仍缺：仓库 Router `GET /repos?limit=&after=` 集成测试；后端 exact-page 契约；空页但 `truncated=true`、`after` 不前进等异常契约；三页以上翻页和回退；仓库切换后的旧请求覆盖；搜索与翻页并发；S3 token 失效/变化；以及上游重叠数据的去重策略。
 
+## 后端开发视角
+
+作为后端开发经历，这个项目的可讲点集中在网关与契约层，前端只是载体：
+
+- **身份与转发**：FastAPI 网关用 `Depends(get_identity)` 注入登录身份，以 `X-User-Arn` 与用户凭据签名向 phxoss 转发；安全边界是上游数据面授权。
+- **权限契约**：消费上游 `/permissions` 的 Action/Button/Method+URL 权限集合，形成“按钮能力 -> 请求前校验 -> 上游最终授权”的分层。
+- **分页契约**：统一 `truncated/after`、opaque cursor 与 S3 continuation token 的消费语义，前端不臆测下一页。
+- **测试与事实边界**：以可复跑测试证明改动，明确哪些是平台既有能力、哪些不属于个人成果。
+
+面试时把“按钮置灰、Pinia 缓存”作为实现细节，主线讲后端契约、身份转发与安全边界。
+
 ## 可用于简历的表述
 
 负责 EDS 5.3.2 SangBridge VCS 模块的权限与分页治理：建设仓库权限查询、Pinia 权限缓存及按钮级能力控制，覆盖分支、标签、提交回退、差异对比和 MR，并结合资源创建人限制开发者误操作；统一仓库、分支、标签、提交图和 S3 快照文件树的游标分页契约，修复假下一页、快照漏数据和仓库列表仅展示前 50 条等问题。权限核心提交 `63d8fdb` 涉及 32 个文件、`+962/-47`；本次复跑权限和分页前端专项测试共 16 个文件、293 个用例通过。
+
+**后端岗位版本**：负责 EDS 5.3.2 SangBridge VCS 管控面后端：实现仓库权限查询接口与网关转发，消费 phxoss `/permissions` 权限集合做按钮能力与请求前校验，明确前端治理不替代数据面授权；统一仓库、分支、标签、提交图与 S3 文件树的游标分页契约，修复假下一页、快照漏数据与仓库列表仅前 50 条问题。核心提交 `63d8fdb` 涉及 32 个文件、`+962/-47`；复跑前端专项测试 16 个文件、293 个用例通过。
 
 ## 1 分钟面试回答
 
@@ -204,3 +217,6 @@ SangBridge 是 EDS 5.3.2 的 AI 与基础设施统一管控平台，使用 Vue 3
 
 - [[项目知识地图]]
 - [[Linux知识地图]]
+- [[FastAPI与ASGI后端框架]]
+- [[鉴权与Token方案]]
+- [[后端接口设计与分页]]
