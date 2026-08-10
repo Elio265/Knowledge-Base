@@ -37,6 +37,47 @@ CPython 中同一进程同一时刻只有一个线程在执行 Python 字节码�
 - 事件循环在 I/O 就绪时恢复对应协程，单线程内实现高并发，无锁竞争。
 - `asyncio.gather()` 并发执行、`asyncio.Semaphore` 限制并发数、`run_in_executor()` 把同步/CPU 任务丢进线程池。
 
+`await` 的执行（2026-08-05 首学）：
+
+```python
+import asyncio
+
+async def hello():
+    print("start")
+    await asyncio.sleep(1)
+    print("end")
+
+print("before")        # ①
+asyncio.run(hello())   # ②
+print("after")         # ③
+
+# 输出顺序：before -> start -> end -> after
+```
+
+- `asyncio.run()` 负责创建事件循环、运行协程、结束后关闭。
+- `await asyncio.sleep(1)` 的意思是：把控制权交回事件循环，当前协程挂起 1 秒；期间事件循环可以调度别的协程，1 秒后恢复继续。
+- `await` 后面的代码必须等 await 完成才执行——这就是「让出控制权」。
+
+`gather` 并发调度（2026-08-05 首学）：
+
+```python
+import asyncio
+
+async def task_a():
+    print("A1")
+    await asyncio.sleep(1)
+    print("A2")
+
+async def main():
+    await asyncio.gather(task_a(), task_a())
+
+asyncio.run(main())
+
+# 输出：A1 -> A1 -> A2 -> A2
+```
+
+`gather` 把两个协程同时放到事件循环排队：任务 1 打印 A1 后在 `await` 让出，任务 2 接着打印 A1 后也让出；1 秒后依次恢复打印 A2。两个 A1 连续出现，说明两个任务在等待期间并发推进；串行执行会是 A1 A2 A1 A2。
+
 ## 底层实现
 
 - 原生协程基于生成器协议演进（PEP 342 -> PEP 380 -> PEP 492），本质是 `send()`/`yield` 的挂起恢复机制。
@@ -65,6 +106,11 @@ CPython 中同一进程同一时刻只有一个线程在执行 Python 字节码�
 3. asyncio 事件循环怎么工作的？一个协程被阻塞会怎样？
 4. FastAPI 中 `async def` 与普通 `def` 有什么区别？（FastAPI 会把普通 def 放进线程池）
 5. 如何排查事件循环被阻塞？有哪些工具/手段？
+
+## 我的薄弱点
+
+- 2026-08-05 首学：GIL 概念与存在原因、CPU/I-O 密集选型、`await` 让出机制此前均未接触；已首学，待确认练习巩固。
+- 2026-08-05 `gather` 并发调度首次确认练习未答出；已用「单线程柜台 + 让出」模型讲解：`gather` 同时排队、`await` 让出、等待结束后恢复，输出 A1 A1 A2 A2。函数名回忆再次失败，已用记忆钩子巩固：**gather = 召集，把多个协程召集到一起并发跑**。
 
 ## 关联知识
 
