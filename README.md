@@ -30,7 +30,6 @@ obsidian-cpp-kb/
 ├── 03-Python/               # Python 基础、并发、FastAPI/ASGI 与后端接口设计
 ├── 04-Project/              # 项目经验与面试表达
 ├── 05-Algorithm/            # 算法与数据结构补充
-├── 06-Interview/            # 面试记录与复盘
 ├── 07-Database/             # MySQL、Redis、缓存与高并发
 ```
 

@@ -14,7 +14,6 @@ obsidian-cpp-kb/
 ├── 03-Python/        # Python、FastAPI 与后端接口设计
 ├── 04-Project/
 ├── 05-Algorithm/
-├── 06-Interview/
 └── 07-Database/       # 数据库与缓存高频面试知识
 ```
 
