@@ -300,6 +300,22 @@ def countdown(n):
 - 三层嵌套装饰器首学：`@repeat(n=3)` 完全等价于 `repeat(n=3)(fn)`，所以 `repeat` 必须先返回一个装饰器函数再接收 fn；不能两层，否则 `@repeat(n=3)` 没法解释（fn 还没传就执行 repeat）。
 - 类装饰器首学：`__init__(self, fn)` 在装饰时调用一次，把 fn 存到 `self.fn`（闭包外的另一套访问机制）；`__call__(self, *args, **kwargs)` 在每次调用时触发并透传参数；`functools.update_wrapper(self, fn)` 拷贝元信息到 self（类装饰器用 update_wrapper 而非 wraps，因为 wraps 是为函数装饰器预设的）。
 - 强化口诀：闭包 = 函数代码 + 捕获 cell；`@decorator` = 语法糖等价 `fn = decorator(fn)`；带参数装饰器必三层；类装饰器 = `__init__` 存 fn + `__call__` 透传；`functools.wraps` 保留元信息。
+- 类属性 vs 实例属性：`tricks = []` 是类属性、定义时创建一次所有实例共享；`obj.attr = ...` 几乎总是赋值（在实例 `__dict__` 创建键）会**遮蔽（shadow）**类属性，但**不**修改类属性本身；想真正修改共享对象用原地操作（`.append()`、`.update()`、`+=` 等）。
+- 属性查找顺序（Python 3）：沿 `type(x).__mro__` 先查 data descriptor（含 `__set__`/`__delete__`，如 `@property`）→ 实例 `__dict__` → 类 `__dict__` → 父类 `__dict__` → `__getattr__` 兜底 → AttributeError。data descriptor 优先是为了让 `@property` 能拦截所有访问。
+- 三种方法的访问范围：实例方法 `self` 可访问实例+类属性；classmethod `cls` 只能访问类属性和方法（含其他 classmethod/staticmethod）；staticmethod 既不能访问实例也不能访问类，访问啥都得通过参数传进来。
+- `@classmethod` 用 `cls` 而不是类名：`cls` 运行时绑定到实际调用类（支持子类继承时返回子类实例）；写死 `Date(...)` 破坏多态。
+- `@staticmethod` vs 模块函数：static 可被继承、命名空间清晰（`Date.is_valid`）、API 一致；模块函数通用但归属模糊。判断标准：逻辑上属于这个类 + 子类可能覆盖 + 跟其他方法组成完整 API 时用 staticmethod。
+- Singleton 的 `__init__` 重复：每次 `Singleton()` Python 都会调 `__new__` + `__init__`；`__new__` 可以返回缓存实例跳过创建，但 `__init__` 仍会调；用 `flag`（`cls._initialized`）或 `hasattr(self, 'value')` 防重复初始化。
+- 不可变类型继承必须用 `__new__`：`int`/`str`/`tuple` 创建后值不可改，`__init__` 拿到的 self 已定型；`__new__` 才能在创建时把算好的值传给父类构造。
+- 描述符协议：实现 `__get__` / `__set__` / `__delete__` 中任意一个的类叫描述符；`@property` 本质是 data descriptor（含 `__set__`），把方法调用转换成属性访问；data descriptor 优先于实例 `__dict__`，所以 `obj.x = 5` 不会覆盖 property。
+- 第 3 轮首次接触（2026-08-11）：四题核心已沉淀——类属性 vs 实例属性 + 查找顺序、三种方法（self/cls/static）+ `cls` 多态性、MRO（C3 linearization）+ `super()` 链、`__new__` vs `__init__` + 描述符协议。
+- 本轮最薄弱的是**类与面向对象的高阶部分**（MRO、`__new__`/`__init__`、描述符）——之前完全没接触过；首次接触后建立心智模型，但需要后续通过实际代码练习巩固。
+- 类属性 vs 实例属性的**赋值 vs 原地修改**区分是踩坑高频：用户对 `d1.tricks = ["新"]` 的理解偏向"重新指向类属性"，实际是"在实例 dict 创建新键遮蔽类属性"——这个区分需要通过练习巩固。
+- **`cls` 多态性首学**：`@classmethod` 里的 `cls` 在运行时绑定到实际调用类（`USDate.from_string` 时 `cls = USDate`），返回的实例也是子类实例；写死 `Date(...)` 会破坏多态。
+- **MRO + super 首学**：`super()` 不是"调父类"而是"调 MRO 里的下一个"；菱形继承 `D(B, C)` 的 MRO 是 `(D, B, C, A, object)`；super 链保证每个类的 m 方法都被调用一次且按声明顺序。
+- **`__new__` vs `__init__` 首学**：前者造对象必须返回实例，后者初始化设属性；`__init__` 在 `__new__` 返回正确类型时才调；Singleton 中 `__init__` 仍会多次调，需要 flag/`hasattr` 防重复；不可变类型（int/str/tuple）继承必须用 `__new__` 设值。
+- **描述符协议首学**：实现 `__get__`/`__set__`/`__delete__` 的类叫描述符；`@property` 是 data descriptor；data descriptor 优先于实例 dict——`obj.x = 5` 不会覆盖 property。
+- **方法论反馈**：纯"一抛到底"问答模式对**完全没学过的领域**压力大；下次开新主题时改用**先讲后问 + 分层题组**（基础题 + 进阶题），避免梯度太陡。
 ## 我的薄弱点
 
 本轮已确认掌握：可变默认参数跨调用共享、`b = a` 是引用、`c = a[:]` 是浅拷贝、`is` 比较身份而 `==` 比较值。
@@ -329,6 +345,10 @@ def countdown(n):
 9. 装饰器的本质是什么？`@timer` 完全等价于什么写法？装饰器必须做到的"四件套"是哪些（透传参数、透传返回值、`functools.wraps` 保留元信息、通用参数签名）？
 10. 带参数装饰器为什么要三层嵌套？`@repeat(n=3)` 完全等价于什么？类装饰器的 `__init__(self, fn)` 和 `__call__(self, *args, **kwargs)` 各自何时被调用、接收什么？
 11. Python 3 的 keyword-only 参数规则是？`def f(a, b, *args, c, d=10, **kwargs)` 中 `c`、`d` 必须怎样调用？
+12. 类属性和实例属性的区别？`d1.tricks = ["新"]` 是修改类属性还是创建实例属性？Python 属性查找顺序是？
+13. `@classmethod`、`@staticmethod`、实例方法的区别？`@classmethod` 里为什么用 `cls(y, m, d)` 而不是 `Date(y, m, d)`？classmethod 的多态性怎么体现？
+14. Python 的 MRO 怎么计算（C3 linearization 思想）？菱形继承 `D(B, C)` 的 MRO 是什么？`super()` 在每个类里调到的是哪个？
+15. `__new__` vs `__init__` 的分工？Singleton 模式里 `__init__` 仍会被多次调用，怎么防重复？为什么继承 `int`/`str`/`tuple` 必须用 `__new__` 设值？描述符协议是什么？`@property` 的实现原理？
 
 ## 关联知识
 
