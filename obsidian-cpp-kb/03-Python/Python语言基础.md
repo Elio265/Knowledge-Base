@@ -1,7 +1,7 @@
 ---
 tags: [python, basics, interview]
 created: 2026-08-04
-updated: 2026-08-10
+updated: 2026-08-11
 status: 学习中
 ---
 
@@ -290,6 +290,16 @@ def countdown(n):
 - 第 1 轮二次精修（2026-08-10）：四题核心已沉淀——可变默认参数陷阱、`a[:]`/`list(a)` 浅拷贝内层共享、`is` 只用于 `None`/单例、CPython 整数缓存 -5~256、常量折叠 + 字符串驻留规则、深拷贝边界（不可拷贝对象清单 + tuple 深拷贝意义）。
 - 本轮最薄弱的是「**循环引用 + memo 字典**」——之前误判 `deepcopy` 不能处理循环引用。核心机制：在递归拷贝前先在 memo 里注册"占位"，递归过程中遇到原对象直接返回占位副本，维护"图同构"。
 - 强化口诀：浅拷贝"换信封不改信纸"；`copy.deepcopy` = 递归 + memo 占位；`is` 只用于 `None` 和单例；函数默认值用 `None` 哨兵，不直接用可变对象。
+- Python 3 keyword-only 参数：`def f(a, b, *args, c, d=10, **kwargs)` 中 `c` 和 `d` 都必须用关键字调用（位置参数不允许）；`d=10` 即使有默认值，也不能用位置传，必须 `c=..., d=...`。这是 Python 3 相比 Python 2 的严格化。
+- 闭包晚绑定陷阱：`funcs = [lambda: i for i in range(3)]` 里三个 lambda 输出全是 `2`（i 的最终值），因为 lambda 捕获的是变量名而非值；修复用 `lambda i=i: i`（默认参数法）或工厂函数 `make_func(i)`。列表推导式和 for 循环结果一样（都晚绑定）。
+- 装饰器必须透传调用与返回值：必须 `result = fn(*args, **kwargs)` 调用原函数，并 `return result` 透传返回值；缺一不可——少了参数传不过去，少了返回值变 None。
+- 装饰器必须加 `functools.wraps(fn)`：不写会丢失 `__name__`、`__doc__`、`__module__`、`__annotations__` 等元信息；`help(fn)` 和 Sphinx 文档会显示成 wrapper 的元信息，调试和文档工具被误导。
+- 闭包作用域的"读改写" vs "裸赋值"：`n += 1` 在闭包里能改 enclosing 变量（编译器生成 `STORE_DEREF` 写 cell）；但**裸赋值** `n = v` 默认在 local 创建新变量，要改 enclosing 必须显式 `nonlocal n`。
+- 第 2 轮二次精修（2026-08-11）：四题核心已沉淀——`*args`/`**kwargs` def 时收集 + call 时解包、Python 3 keyword-only 参数规则、闭包晚绑定与 LEGB、装饰器原理（语法糖 + `functools.wraps` + 透传参数和返回值）、三层嵌套装饰器 + 类装饰器（`__init__` + `__call__` + `update_wrapper`）。
+- 本轮首学装饰器：装饰器本质 = 接收函数返回 wrapper 的函数；`@timer` 等价 `fn = timer(fn)`；关键四件套 = `*args/**kwargs` 接收参数 + `fn(*args,**kwargs)` 透传调用 + `functools.wraps(fn)` 保留元信息 + `return result` 透传返回值。
+- 三层嵌套装饰器首学：`@repeat(n=3)` 完全等价于 `repeat(n=3)(fn)`，所以 `repeat` 必须先返回一个装饰器函数再接收 fn；不能两层，否则 `@repeat(n=3)` 没法解释（fn 还没传就执行 repeat）。
+- 类装饰器首学：`__init__(self, fn)` 在装饰时调用一次，把 fn 存到 `self.fn`（闭包外的另一套访问机制）；`__call__(self, *args, **kwargs)` 在每次调用时触发并透传参数；`functools.update_wrapper(self, fn)` 拷贝元信息到 self（类装饰器用 update_wrapper 而非 wraps，因为 wraps 是为函数装饰器预设的）。
+- 强化口诀：闭包 = 函数代码 + 捕获 cell；`@decorator` = 语法糖等价 `fn = decorator(fn)`；带参数装饰器必三层；类装饰器 = `__init__` 存 fn + `__call__` 透传；`functools.wraps` 保留元信息。
 ## 我的薄弱点
 
 本轮已确认掌握：可变默认参数跨调用共享、`b = a` 是引用、`c = a[:]` 是浅拷贝、`is` 比较身份而 `==` 比较值。
@@ -316,6 +326,9 @@ def countdown(n):
 6. 你在项目里写过哪些 Python？主要负责什么？（对照 04-Project/ 回答）
 7. `copy.deepcopy` 怎么处理循环引用？手写递归深拷贝会怎样？`memo` 字典的"先占位再递归"机制是什么？
 8. CPython 整数缓存范围是？字符串驻留（intern）的规则是？为什么 `"he" + "llo" is "hello"` 是 True，但 `"".join(["he", "llo"]) is "hello"` 是 False？
+9. 装饰器的本质是什么？`@timer` 完全等价于什么写法？装饰器必须做到的"四件套"是哪些（透传参数、透传返回值、`functools.wraps` 保留元信息、通用参数签名）？
+10. 带参数装饰器为什么要三层嵌套？`@repeat(n=3)` 完全等价于什么？类装饰器的 `__init__(self, fn)` 和 `__call__(self, *args, **kwargs)` 各自何时被调用、接收什么？
+11. Python 3 的 keyword-only 参数规则是？`def f(a, b, *args, c, d=10, **kwargs)` 中 `c`、`d` 必须怎样调用？
 
 ## 关联知识
 
