@@ -1,7 +1,7 @@
 ---
 tags: [python, basics, interview]
 created: 2026-08-04
-updated: 2026-08-11
+updated: 2026-08-12
 status: 学习中
 ---
 
@@ -316,6 +316,17 @@ def countdown(n):
 - **`__new__` vs `__init__` 首学**：前者造对象必须返回实例，后者初始化设属性；`__init__` 在 `__new__` 返回正确类型时才调；Singleton 中 `__init__` 仍会多次调，需要 flag/`hasattr` 防重复；不可变类型（int/str/tuple）继承必须用 `__new__` 设值。
 - **描述符协议首学**：实现 `__get__`/`__set__`/`__delete__` 的类叫描述符；`@property` 是 data descriptor；data descriptor 优先于实例 dict——`obj.x = 5` 不会覆盖 property。
 - **方法论反馈**：纯"一抛到底"问答模式对**完全没学过的领域**压力大；下次开新主题时改用**先讲后问 + 分层题组**（基础题 + 进阶题），避免梯度太陡。
+- 生成器首次驱动：未启动的生成器不能用 `g.send(非None)`，会抛 `TypeError: can't send non-None value to a just-started generator`；必须先 `next(g)` 或 `g.send(None)` 启动。
+- 生成器终止抛 `StopIteration`：生成器函数 `return` 或执行到末尾时**抛** StopIteration 异常（不是"正常结束"）；`for` 循环自动捕获。Python 3.3+ `return value` 的值会变成 `StopIteration.value`。
+- `__exit__` 返回值与异常：`return True` 吞掉异常（不抛）；`return False`/`None` 让异常继续传播。常见错误：在 `__exit__` 里意外 return True 把异常吞了，调试半天找不到错误。
+- `@contextmanager` 函数必须含 yield：yield 是 enter/exit 的分界点；没有 yield 函数立即跑完，会抛 `RuntimeError: generator didn't yield`。
+- `__enter__` 返回值赋给 `as VAR`：如果 `__enter__` 没返回值（return None），`as VAR` 会得到 None；想用 `as VAR` 必须 `__enter__` 里 return。
+- 第 4 轮核心机制串讲（2026-08-12）：按"先讲后问"新方法——生成器协议（`yield` 是暂停点 + 栈帧保存）、`next`/`send` 双向通信（首次必须 `next`/`send(None)`，未启动不能 `send(非None)`）、`StopIteration` 作为终止信号、`with` 协议（`__enter__`/`__exit__`）、`@contextmanager` 底层把生成器函数包装成 `__enter__`/`__exit__` 类、`__exit__` 返回 True 吞异常。
+- 本轮核心掌握：生成器协议 4 件套 = `yield` 暂停 + 栈帧保存 + `next` 驱动 + `StopIteration` 终止；`@contextmanager` = `[enter 前] + yield + [exit 后]` 三段式映射。
+- 题 2 写 timer_block 时暴露的小坑：用户写 `time.new()` 是错的（Python 没有 `time.new`，应该是 `time.time()`）——这是 API 记忆点不熟，需要多写多查。
+- `send` 的双向通信本质：`send(value)` 等价于 `next()` 但 yield 表达式接收 value 作为输入；常用于协程（现在被 `async/await` 取代）。
+- `__exit__` 的 3 个参数：`(exc_type, exc_val, exc_tb)`，无异常时都是 None；返回 True 吞异常时要注意先记录日志再吞，否则错误悄无声息。
+- 强化口诀：生成器 = `yield` 暂停 + 栈帧保存；首次驱动必须 `next`/`send(None)`；`with` = `[enter 前] + yield + [exit 后]`；`__exit__` 返回 True 吞异常。
 ## 我的薄弱点
 
 本轮已确认掌握：可变默认参数跨调用共享、`b = a` 是引用、`c = a[:]` 是浅拷贝、`is` 比较身份而 `==` 比较值。
@@ -349,6 +360,8 @@ def countdown(n):
 13. `@classmethod`、`@staticmethod`、实例方法的区别？`@classmethod` 里为什么用 `cls(y, m, d)` 而不是 `Date(y, m, d)`？classmethod 的多态性怎么体现？
 14. Python 的 MRO 怎么计算（C3 linearization 思想）？菱形继承 `D(B, C)` 的 MRO 是什么？`super()` 在每个类里调到的是哪个？
 15. `__new__` vs `__init__` 的分工？Singleton 模式里 `__init__` 仍会被多次调用，怎么防重复？为什么继承 `int`/`str`/`tuple` 必须用 `__new__` 设值？描述符协议是什么？`@property` 的实现原理？
+16. 生成器协议的核心是什么？`yield` 是暂停点还是返回值？首次驱动生成器为什么必须用 `next()` 或 `send(None)`，不能直接 `send(值)`？生成器终止时抛什么异常？
+17. `@contextmanager` 装饰的函数必须含 yield 吗？底层是怎么把生成器函数包装成 `__enter__`/`__exit__` 的？`__exit__` 返回 `True` / `False` / `None` 分别意味着什么？
 
 ## 关联知识
 
