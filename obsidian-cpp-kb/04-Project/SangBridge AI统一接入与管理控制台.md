@@ -136,6 +136,10 @@ SangBridge 面向 EDS 5.3.2，以 Vue 3 控制台和 Python 3.11/FastAPI 网关�
 > 视角：整个项目是我的。从全局视角梳理 SangBridge 的部署、模块、数据流。这部分用于建立**架构骨架**，具体模块细节在后续"## 核心代码"/"## 调试记录"等段落中深挖。
 
 ### 部署架构
+**核心路径**（粗实线/红色节点）：用户 → VIP → 当前持有节点 WAF → SangBridge → VcsClient → phxoss VCS
+**辅助路径**（细线/普通色）：SangBridge → UnivSrvdClient → univ-srvd；SangBridge → Mongo / cluster-manager
+**说明**：粗实线/红节点 = 核心价值路径（高可用连续访问 + 凭据不暴露 + 身份贯通 + 上游协议隔离）；细线 = 辅助路径（UniView 能力、统一运维）
+
 
 ```mermaid
 graph TB
@@ -182,6 +186,10 @@ NodeC --> WAF_C[sangfor_waf]
 | 跨节点用户体验 | "节点 A 登录 → VIP 切到 B → 同 token 继续可用" | session 不存本机，依赖共享 Mongo 恢复身份 |
 
 ### 模块拆分
+**核心模块**（粗实线/红色）：VCS 模块（含 VcsClient）
+**辅助模块**（细线/普通色）：UniView 模块（含 UnivSrvdClient）、ClusterManager 模块
+**说明**：粗实线/红节点 = 直接服务核心价值"统一入口 + 身份贯通 + 上游协议隔离"的主路径模块；细线 = 价值衍生模块（管理面、扩展能力）
+
 
 ```mermaid
 graph TB
@@ -243,6 +251,10 @@ graph TB
 - 前端 Pinia Store 做权限缓存（按 `repoId`），仓库切换重新加载
 
 ### 关键数据流：登录 → 调 VCS
+**核心路径**（实线）：登录 → SangBridge 身份复核 → 调 VCS（带 SigV4）
+**辅助路径**（虚线）：调 UniView（X-IFGW-User 头）—— 跟 VCS 链路相似但认证机制不同
+**说明**：实线 = 价值驱动优先级 P0 路径（凭据不暴露 + 身份贯通 + 高可用连续访问）；虚线 = 价值衍生路径（管理面能力）
+
 
 ```mermaid
 sequenceDiagram
@@ -326,18 +338,29 @@ sequenceDiagram
 - `VcsClient` 同时覆盖 VCS 控制面 REST 与 S3 数据面（统一处理 SigV4、对象流式、Multipart、目录桶 Session）
 - 目录桶（`--x-s3` 后缀）特殊流程：用户 IAM AK/SK 签 `GET /{bucket}?session` → 拿短期凭据 → 缓存 5 分钟 / LRU 1024 → 后续用 S3ExpressAuth 签
 
-### 关键架构薄弱点（后续深挖入口）
+### 关键架构薄弱点（按价值驱动重排）
 
-1. **限流不跨节点** — 进程内 Token Bucket，VIP 漂移后用户桶重新计数；攻击者通过 VIP 漂移可绕过单节点限流（用户桶 300/s × N 节点 = N×300/s）
-2. **审计默认关闭** — `audit.enabled=false` 是默认生产配置；写操作无痕，安全事件无追溯依据
-3. **WAF 在仓库外** — 改 WAF 配置（签名密钥、超时、规则）会绕过 SangBridge CI，需要独立变更流程
-4. **session 不存本机** — 每次请求都回查 Mongo `tokens` + `cluster-manager.user`；高并发下 Mongo 可能成瓶颈
-5. **AK/SK 在 Mongo 库内是 AES-CBC 加密** — 加密密钥在哪？谁解密？轮换策略？失守的爆炸半径需要评估
-6. **没 Redis** — 所有"分布式"功能（限流、缓存、幂等、防重）都缺基础组件
-7. **没 Prometheus** — 故障时无指标可查；纯靠 `/sf/log/today/sangbridge.log` 定位
-8. **S3 Express Session 缓存** — 5 分钟 LRU 1024 桶，过期边界、凭据轮换兼容性、与目录桶快速删除的兼容性都需要验证
-9. **VIP 漂移时旧请求处理** — 节点切换瞬间在飞请求会失败，重试策略？用户体验？
-10. **CI/CD 流程不清晰** — 笔记里提"CI 镜像"但没流程；后端 RPM 构建、前端 build、EDS 节点部署的链路需要梳理
+> 排序依据见 [[#价值驱动的优先级]]：**威胁核心价值 = P0，影响但非核心 = P1，演进/细节问题 = P2**。
+
+#### P0（直接威胁核心价值）
+
+1. **AK/SK AES-CBC 加密密钥管理** — 加密密钥在哪？谁解密？轮换策略？失守的爆炸半径需要评估。威胁**凭据不暴露 + 身份贯通**（核心 P0 价值），失守=整套 SigV4 体系崩溃。
+2. **审计默认关闭** — `audit.enabled=false` 是默认生产配置；写操作无痕，安全事件无追溯依据。威胁**安全边界统一 + 失败成本（事件追溯）**。
+3. **session 不存本机的性能瓶颈** — 每次请求都回查 Mongo `tokens` + `cluster-manager.user`；高并发下 Mongo 可能成瓶颈。威胁**高可用连续访问**（核心 P0 价值）。
+
+#### P1（影响但非核心）
+
+4. **限流不跨节点** — 进程内 Token Bucket，VIP 漂移后用户桶重新计数；攻击者通过 VIP 漂移可绕过单节点限流（用户桶 300/s × N 节点 = N×300/s）。影响**安全边界统一**。
+5. **VIP 漂移时旧请求处理** — 节点切换瞬间在飞请求会失败，重试策略？用户体验？影响**高可用连续访问**。
+
+#### P2（演进/细节问题）
+
+6. **WAF 在仓库外** — 改 WAF 配置（签名密钥、超时、规则）会绕过 SangBridge CI，需要独立变更流程。
+7. **没 Redis** — 所有"分布式"功能（限流、缓存、幂等、防重）都缺基础组件，影响**快速接入新上游**。
+8. **没 Prometheus** — 故障时无指标可查；纯靠 `/sf/log/today/sangbridge.log` 定位。影响**统一运维与治理**。
+9. **S3 Express Session 缓存** — 5 分钟 LRU 1024 桶，过期边界、凭据轮换兼容性、与目录桶快速删除的兼容性都需要验证。
+10. **CI/CD 流程不清晰** — 笔记里提"CI 镜像"但没流程；后端 RPM 构建、前端 build、EDS 节点部署的链路需要梳理。
+
 
 ### 事实边界更新（按"整个项目是我的"视角）
 
