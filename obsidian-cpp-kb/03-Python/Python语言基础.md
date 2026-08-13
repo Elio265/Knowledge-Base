@@ -1,7 +1,7 @@
 ---
 tags: [python, basics, interview]
 created: 2026-08-04
-updated: 2026-08-12
+updated: 2026-08-13
 status: 学习中
 ---
 
@@ -327,6 +327,21 @@ def countdown(n):
 - `send` 的双向通信本质：`send(value)` 等价于 `next()` 但 yield 表达式接收 value 作为输入；常用于协程（现在被 `async/await` 取代）。
 - `__exit__` 的 3 个参数：`(exc_type, exc_val, exc_tb)`，无异常时都是 None；返回 True 吞异常时要注意先记录日志再吞，否则错误悄无声息。
 - 强化口诀：生成器 = `yield` 暂停 + 栈帧保存；首次驱动必须 `next`/`send(None)`；`with` = `[enter 前] + yield + [exit 后]`；`__exit__` 返回 True 吞异常。
+- `try/except/else/finally` 执行顺序：无异常走 `try→else→finally`；有异常被 except 捕获走 `try→except→finally`（else 不执行）；有异常未被捕获走 `try→finally→异常向上抛`（finally 必跑、异常不吞）。
+- `return` 与 finally 优先级：finally **必跑**（即使有 return）；return 取最后执行的那次——如果 try 和 else 都有 return，**else 的 return 覆盖 try 的 return**（因为 else 后于 try 执行）。
+- 不要裸 `except:`：会捕到 `KeyboardInterrupt`（Ctrl+C）和 `SystemExit`（`sys.exit()`），按 Ctrl+C 都停不下来。最小化捕获范围：先具体后一般。
+- 自定义异常继承 `Exception` 而不是 `BaseException`：`BaseException` 包括 KeyboardInterrupt/SystemExit，继承 Exception 避免污染控制流。常见自定义：`class MyError(Exception): pass`、加 `Error`/`Exception` 后缀。
+- `raise from` 保留异常链：`raise NewError(...) from e` 把 e 链到 `NewError.__cause__`；`raise NewError(...) from None` 显式隐藏原因（不想暴露底层细节时用）。调试时 `e.__cause__` 链路能看清根因。
+- 推导式三段式结构：`[expr for var in iter if cond]` 一行搞定数据构造；Python 3 推导式有独立作用域（PEP 227），不污染外层变量；链式比较 `1 <= p <= 65535` 等价于 `1 <= p and p <= 65535` 但更优雅。
+- 生成器表达式 vs 列表推导式：生成器是惰性的（`O(1)` 内存），列表是立即求值（`O(n)` 内存）；大数据流处理用生成器，需要重复迭代或随机访问用 list。
+- 标准库 API 记忆：`json.load(f)` 从文件读 → dict；`json.loads(s)` 从字符串读 → dict；`json.dump(obj, f)` 写文件；`json.dumps(obj)` 转字符串（末尾带 s）。同理 `pickle.load/loads`、`csv.reader/writer`。
+- 第 5 轮核心机制串讲（2026-08-13）：按"先讲后问"新方法——异常处理（`try/except/else/finally` 4 子句执行顺序 + return 优先级 + 自定义异常继承 + `raise from` 链）、推导式（4 种 + 三段式 + 链式比较 + Python 3 作用域）、常用标准库速览（路径 / JSON / 正则 / collections / datetime）。
+- 本轮关键收获：**return 与 else 的覆盖关系**——之前以为 try 的 return 是"最终返回值"，实际 else 块后于 try 执行，如果 else 也有 return 会**覆盖** try 的 return。这是面试常考点也是实际工程容易踩的坑。
+- 自定义异常要点：`class ConfigError(Exception)` 而不是继承 BaseException；`raise ConfigError(...) from e` 保留原始异常链（`e.__cause__`）；不要兜底 `except Exception`，只捕获明确的具体异常（`FileNotFoundError`、`json.JSONDecodeError`）。
+- 推导式 vs `map`/`filter`：能用推导式就用推导式（更 Pythonic、声明式、可读性高、性能略优）；需要惰性时用生成器表达式 `(... for ... in ...)`；链式比较 `1 <= p <= 65535` 是 Python 特有的优雅语法。
+- 标准库常用 API：`json.load(f)`/`json.loads(s)`（文件/字符串 → dict）、`json.dump(obj, f)`/`json.dumps(obj)`（dict → 文件/字符串）；`pathlib.Path('a/b').read_text()` 比 `open('a/b').read()` 简洁；`collections.Counter`/`defaultdict`/`namedtuple` 是高频工具。
+- 本轮巩固题执行情况：题 1（执行顺序）打印顺序答对 3 个场景；题 2（推导式 + 自定义异常）用户选直接讲解，未手写；后续可补一次 `load_config` + `parse_ports` 手写练习。
+- 强化口诀：try/except/else/finally = `try→{else?}→finally`；return 取最后执行的那次；自定义异常继承 Exception；`raise from` 保留异常链；推导式三段式 `[expr for var in iter if cond]`。
 ## 我的薄弱点
 
 本轮已确认掌握：可变默认参数跨调用共享、`b = a` 是引用、`c = a[:]` 是浅拷贝、`is` 比较身份而 `==` 比较值。
@@ -362,6 +377,9 @@ def countdown(n):
 15. `__new__` vs `__init__` 的分工？Singleton 模式里 `__init__` 仍会被多次调用，怎么防重复？为什么继承 `int`/`str`/`tuple` 必须用 `__new__` 设值？描述符协议是什么？`@property` 的实现原理？
 16. 生成器协议的核心是什么？`yield` 是暂停点还是返回值？首次驱动生成器为什么必须用 `next()` 或 `send(None)`，不能直接 `send(值)`？生成器终止时抛什么异常？
 17. `@contextmanager` 装饰的函数必须含 yield 吗？底层是怎么把生成器函数包装成 `__enter__`/`__exit__` 的？`__exit__` 返回 `True` / `False` / `None` 分别意味着什么？
+18. `try/except/else/finally` 的执行顺序？什么场景下 else 子句**不**执行？如果 try 和 else 都有 return，最终返回哪个？为什么？
+19. 自定义异常应该继承 `Exception` 还是 `BaseException`？为什么不要写裸 `except:`？`raise from e` 和裸 `raise` 的区别是什么？
+20. Python 有哪几种推导式？list 推导式三段式结构是？Python 3 推导式的作用域规则是？什么时候用生成器表达式 `(x for x in iter)` 而不是 list 推导式？
 
 ## 关联知识
 
