@@ -603,6 +603,122 @@ HTTP 请求
 - TTL 默认 30 天
 - **架构权衡**：**默认 `audit.enabled=false`**——生产需运维显式打开（见[[#关键架构薄弱点]]#2）
 
+#### 审计（P0 薄弱点 #2，已深入理解）
+
+> 详见 [[#关键架构薄弱点]] #2。这部分把"为什么是 P0"展开成三类审计/日志的差异、默认关闭的根因、降级链路的不足。
+
+**SangBridge 有三类"审计/日志"，需要分开看**：
+
+| 类型 | 存储 | 受 audit.enabled 控制 | 语义化 | 默认行为 |
+|---|---|---|---|---|
+| 通用网关审计 | Mongo `sangbridge.audit_logs` | ✓ | 弱（action/resource 字段不填） | **关闭** |
+| VCS 领域审计 | 结构化应用日志 `sangbridge.vcs.audit` | ✓ | 强 | **关闭**（且只发应用日志，无独立库） |
+| 访问日志 | `/sf/log/today/sangbridge.log`（EDS syslog） | ✗（始终有） | 弱（无 user_id/业务资源） | 始终有 |
+
+**通用网关审计 schema（实际字段）**：
+
+| 字段 | 含义 | 当前是否填 |
+|---|---|---|
+| `_id` | Mongo ObjectId | Mongo 自动 |
+| `req_id` | 请求链路 ID | ✓ |
+| `user_id` | 当前登录用户 ID | 已认证请求通常是 |
+| `username` | 当前登录用户名 | 已认证请求通常是 |
+| `action` | 语义动作 | ✗ **空字符串**（中间件未填） |
+| `resource` | 资源标识 | ✗ **空字符串**（中间件未填） |
+| `method` | HTTP 方法 | ✓ |
+| `path` | 请求路径 | ✓ |
+| `status_code` | SangBridge 响应 HTTP 状态 | ✓ |
+| `client_ip` | WAF 解析的客户端 IP | ✓ |
+| `latency_ms` | 请求耗时 | ✓ |
+| `created_at` | UTC 写入时间 | ✓ |
+| `details.query` | URL query 参数字典 | ✓（**未做 query 脱敏**） |
+
+**不捕获**：
+
+- GET 请求
+- 请求 body、响应 body、HTTP headers
+- ARN、AK、SK、Cookie、SigV4 Authorization
+- 上游实际执行结果的详细业务字段
+
+**触发与失败行为**：
+
+- 异步非阻塞：`asyncio.create_task(...)`，最多等 2 秒
+- 超时/异常 → warning 日志 → 丢弃该审计
+- **无重试、无 Outbox、无补偿**
+- **不阻塞业务**
+
+**TTL 清理**：
+
+- Mongo 原生 TTL index `{ created_at: 1 }, expireAfterSeconds = ttl_days × 86400`
+- 默认 `ttl_days=30`
+- SangBridge 只启动时幂等创建 index，不执行删除任务
+- **不归档到长期审计库**——30 天后即丢失
+
+**默认关闭的根因（**不是性能问题**）**：
+
+- 阶段性范围控制：POC 计划把"接口审计中间件落库"标为"当前阶段不上，默认关闭（BETA）"
+- 2026-05-21 提交信息："当前阶段默认关闭接口审计"
+- 仓库**无生产启用后出问题的记录**——所以**不是技术阻碍，是商业判断**
+- 这意味着可以通过推动打开——但**打开后离"真正可用"还有相当距离**
+
+**降级链路不足**：
+
+- Mongo 写入失败 → 丢弃 + warning 日志（无重试/Outbox）
+- VCS 领域审计**不能自动补偿**：
+  - 也受 audit.enabled 控制
+  - 只发结构化应用日志，**不持久化到独立审计库**
+  - 默认关闭时不发
+  - 即使开启也只覆盖 VCS 业务动作，不覆盖 UniView/登录/网关拦截
+- 真实事故时只靠 warning 日志（外部日志平台是否采集**仓库没有定义**）
+
+**三层覆盖度分析**：
+
+| 单层缺失 | 后果 |
+|---|---|
+| 只有 WAF/access log | 可做排障，难做责任追溯（缺用户身份、业务资源） |
+| 只有 VCS 上游审计 | VCS 操作可追溯，UniView / 迁移 / 登录 / 网关拒绝的请求无记录 |
+| 只有 Mongo 网关审计 | 网关写 API 可追溯，VCS 资源级操作无证据；当前 action/resource 字段为空 |
+| 三层全有 | 用 req_id + 用户身份 + VCS 操作交叉验证，形成完整证据链 |
+
+**查询、告警、复盘现状**：
+
+- **查询 API**：`GET /open/api/sangbridge/v1/audit/logs`——但**只能查自己的**（user_id 强制等于当前登录用户）
+  - 无管理员越权查询
+  - 无按 actor / IP / req_id / action / resource 搜索
+  - `audit.enabled=false` 时 API 几乎查不到
+- **审计告警**：**无任何自动告警**（无高频失败、批量删除、非工作时间、新 IP 等检测）
+  - 仅有普通 warning/error 日志
+  - 外部日志平台是否采集告警**未定义**
+- **复盘**：无正式 incident playbook
+  - 真实复盘靠 req_id + 时间/IP/路径 + 多个日志源
+- **保留期**：
+  - Mongo audit_logs：30 天（无归档）
+  - 其他日志：EDS syslog / NGSWAF / 上游各自管理（未定义）
+
+**关联键分析**：
+
+| 两层数据 | 可用关联键 | 可靠性 |
+|---|---|---|
+| Mongo audit_logs ↔ SangBridge access log | `req_id` | **强**（同一 SangBridge 生成的 UUID） |
+| 客户端 ↔ SangBridge 日志 | 响应头 `X-Request-Id` | **强** |
+| WAF ↔ SangBridge | 时间/IP/方法/路径/状态 | **中等**（**未证明** WAF 记了 SangBridge 后的 X-Request-Id） |
+| SangBridge ↔ phxoss VCS | 时间/仓库/用户 ID/ARN/SigV4 AK | **中等**（VCS 请求带 SigV4 + X-User-Arn） |
+| SangBridge req_id ↔ phxoss 审计 | **无确定键** | **弱**（VcsClient 没把 X-Request-Id 传给 phxoss；本地 VCS emitter 的 trace_id 是独立新 UUID） |
+
+**遗留薄弱点**（已识别但当前未实现）：
+
+- 通用审计 schema 的 `action/resource` 字段是**预留但未填充**——无语义化
+- 异步 + 尽力而为 + 2 秒超时 = **不可靠审计**，无重试/Outbox/补偿
+- 无任何自动告警（高频失败/批量删除/非工作时间敏感操作/新 IP 等）
+- 查询 API 只能查自己，无管理/SOC 视角的全局检索
+- 30 天 TTL 后无归档 = **长期事故复盘无证据**
+- `req_id` 不传给 phxoss = **端到端证据链断裂**
+- query 参数原样记录无脱敏 = **潜在泄漏**
+- 外部日志平台是否采集未定义 = **可观测性依赖外部约定**
+- 三层审计单独看都不完整，必须**三层关联**才能形成证据链
+
+
+
 ### WAF 防御
 
 - **外层 WAF**：`sangfor_waf`（Nginx，仓库外）承担 TLS + WAF 规则 + 反代
