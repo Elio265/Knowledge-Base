@@ -590,6 +590,201 @@ HTTP 请求
   - ClusterManager：只读 Mongo，无认证转换
 - 凭据轮换**立即生效**（每次请求都回查 user 表验指纹）
 
+#### 身份与转发的 Mongo 查询性能（P0 薄弱点 #3，已深入理解）
+
+> 详见 [[#关键架构薄弱点]] #3。这部分把"为什么是 P0"展开成实际查询形态、性能瓶颈的真实位置、缓存取舍、替代方案设计。
+
+**正常受保护请求的 Mongo 查询 = 2 次读**（**不**用 token/user 进程内缓存）：
+
+1. `sangbridge.tokens` 按 `sb_auth` 查 token：
+   ```javascript
+   db.tokens.findOne({ token: "<sb_auth cookie 原文>" })
+   ```
+2. `cluster-manager.user` 一次 `$or` findOne（**不是多次 round-trip**）：
+   ```javascript
+   db.user.findOne({
+     $or: [
+       { _id: "<user_id 字符串>" },
+       { username: "<user_id>" },
+       { userid: "<user_id>" },
+       { console_email: "<user_id>" },
+       { _id: ObjectId("<user_id>") }  // user_id 可解析时才加入
+     ]
+   })
+   ```
+
+第 2 次读**一次性**完成：用户存在性、status/disabled 校验、user.keys 指纹、密码指纹、读取解密 AK/SK、unified_view_enabled 等。
+
+**各场景的查询次数**：
+
+| 场景 | Mongo 操作 |
+|---|---|
+| 有效受保护请求 | 2 次读 |
+| 缺少 cookie | 0 次 |
+| 无效 token | 1 次读 |
+| token 已过期 | 1 次读 + 1 次删除 token |
+| 用户被禁用/删除 | 2 次读 + 1 次删除 token |
+| 用户 keys 已轮换 | 2 次读 + 1 次异步删除 token |
+| 密码指纹变化 | 2 次读 + 1 次删除 token |
+| 开启通用审计的写请求 | 上述 + 异步 `insertOne(audit_logs)` |
+
+**额外条件查询**：UniView/VCS 路由功能开关检查，每进程 10 秒 TTL 缓存（**命中时为 0**）。
+
+**FastAPI 同请求复用**：`get_identity` 在 Router + feature gate 间默认复用——不会做两轮认证查询。
+
+**性能瓶颈的真实位置**（仓库可确认的）：
+
+| 位置 | 结论 |
+|---|---|
+| Mongo primary CPU/IO | 可能成为瓶颈，**但无生产指标证明** |
+| Mongo 网络 RTT | 每个请求至少 2 次逻辑读，**网络 RTT 直接叠加**到认证路径 |
+| Mongo 连接池 | 每进程 1 个 AsyncMongoClient 单例，**未显式配置 `maxPoolSize`**，实际并发上限依赖 PyMongo 默认值 |
+| user 查询 | 用 `$or` findOne（不是多次 round-trip），**但仓库未提供索引/执行计划证据** |
+| 上游 UniView/phxoss | **更可能主导端到端延迟**——SangBridge 的 Mongo 认证只是固定前置成本 |
+| 审计写 | 默认关闭；启用后增加 majority journal 写和索引维护压力 |
+
+**Mongo 架构与读写位置**：
+
+- EDS Mongo 是 `replSet=eds` 副本集，标准部署 3 个成员
+- SangBridge 连接串来自 `/sf/config/cluster.json`
+- **代码未配 `readPreference=secondary/secondaryPreferred`——默认读走 primary**
+- 写：`w=majority`, `journal=true`（多数派确认）
+- 结论：高并发下，**认证读集中到 primary**，而不是由多个 secondary 分摊
+
+**Mongo 慢/不可用时的实际行为**：
+
+| 场景 | 当前行为 |
+|---|---|
+| 启动期 Mongo 不可达 | 启动 ping/连接失败重试，耗尽后进程退出，**systemd 重启** |
+| `tokens.findOne` 慢/失败 | 没有 Mongo 专用 503，走通用异常处理 |
+| `user.findOne` 慢/失败 | 记录 warning，**跳过本轮用户复核**，Identity 不含当前 AK/SK |
+| Mongo 慢但未达驱动超时 | 请求会等待 Mongo |
+| 访问 VCS 时 user 查询失败 | 拿不到 AK/SK → 返回 `VCS-CREDENTIALS-MISSING` |
+| 访问 UniView 时 user 查询失败 | 拿不到 `unified_view_enabled` 可能被拒绝 |
+| 审计写慢/失败 | 最多等 2 秒后丢弃，主业务不阻塞 |
+
+**驱动层关键超时配置**：
+
+```yaml
+serverSelectionTimeoutMS: 15s
+connectTimeoutMS: 3s
+socketTimeoutMS: 120s
+wTimeoutMS: 30s
+w: majority
+journal: true
+```
+
+**关键观察**：**最差表现不是快速返回 503**，而是等待较长 Mongo socket/选主超时后再失败——用户体验是"卡很久"而不是"立即降级"。
+
+**无法从仓库回答的数据**（需要从生产 Prometheus/Mongo 状态采集）：
+
+- 受保护请求平均/P95/P99 耗时
+- 两次 Mongo 读分别占多少毫秒、占端到端比例
+- primary CPU、磁盘、网络、连接池等待
+- secondary 复制延迟
+- 单 Mongo 节点可承受的 QPS
+- SangBridge 实际 QPS 和峰值并发
+- `cluster-manager.user` 实际文档数、平均文档大小、索引大小
+- 用户量级（千/万/十万）
+
+**缓存策略的取舍**：
+
+**当前"完全无缓存"是明确的安全设计，不是单纯技术受限**：
+
+- 每次受保护请求都回源查 tokens 和 cluster-manager.user
+- 用户禁用、登出/吊销、密码修改、keys[] 轮换、IP 绑定变化**下一次请求立即生效**
+- 实现和验收测试都明确**禁止进程内 token cache**
+
+**30 秒内存缓存技术上可行，但会改变该语义**：
+
+- 命中时 Mongo 读从 2 次降到 0 次（缓存完整 identity）
+- 受保护流量 R QPS、缓存命中率 h → 理论减少 `2 × R × h` 次 Mongo 读/秒
+- 仓库**没有实际 QPS、命中率、Mongo 耗时数据**——不能给出具体收益
+- 代价：旧会话最多还能用 30 秒（安全窗口）
+
+**缓存 + 轮换的两种取舍**：
+
+1. **接受"30 秒内生效"**：TTL 到期后重新校验。简单，但安全承诺从"下一请求生效"改为"最多 30 秒生效"
+2. **保持近似立即生效**：用单调递增的 `auth_revision` 字段 + 失效事件广播（Redis Pub/Sub / Stream）——考虑消息丢失、节点重连、重放、缓存兜底 TTL
+
+**尤其不应把解密后的 SK 当作普通身份缓存长期保存**——身份状态缓存与 AK/SK 使用应分开设计，最小化明文凭据在进程内的驻留时间。
+
+**"轮换立即生效"是否过度设计？**
+
+- **没有数据可下结论**：仓库里没有真实用户轮换频率、泄露事件、Mongo 压力统计
+- 该链路最终会取用户 AK/SK 做用户级 SigV4 上游访问，并且 VIP 漂移后无缓存可避免节点不一致——"立即生效"对场景**并非无意义**
+- **但是否值得为它承担每请求 2 次 Mongo 读，应先采集实际数据再选择 SLA**
+
+**仓库现状**：
+
+- 没有 Redis 依赖、配置、ADR——**不能说历史上被否决**
+- 现有两类范围较小的缓存：功能开关 10 秒 TTL 进程内、VCS 目录桶临时 session 5 分钟
+- 两者都**不承载用户认证/撤销状态**
+
+**替代方案的设计**：
+
+**JWT-like 客户端签名 Token**：
+
+- 纯 JWT 只验签：SangBridge 可不查 tokens 集合，但登出/封禁/密码改/keys 轮换后，**已签发 JWT 一直有效到过期**
+- 要支持立即撤销，仍需查共享状态（`user.auth_revision` / JWT jti 黑名单 / 撤销时间）——又回到每请求至少 1 次 Mongo/Redis 查
+- 折中：短 JWT（5 分钟）+ 可选撤销列表，把"立即生效"改"最长 5 分钟"
+- **结论**：JWT 适合降低 token 存储与跨服务验签成本，不天然适合 SangBridge 当前"下一请求失效"的凭据安全语义
+
+**各缓存方案对比**：
+
+| 方案 | 命中时 Mongo 读 | 一致性窗口 | 核心问题 |
+|---|---|---|---|
+| 本地仅缓存 token | 1 次 | token 吊销/登出最多 TTL | 用户禁用/轮换仍可实时发现 |
+| 本地仅缓存用户状态 | 1 次 | 禁用/密码/key 轮换最多 TTL | token 吊销仍实时；用户安全状态可能陈旧 |
+| **本地缓存完整 identity** | **0 次** | 所有撤销事件最多 TTL | 30 秒内旧会话/旧 keys 状态可能有效 |
+| Redis 共享完整 identity | 0 次 Mongo，通常 1-2 次 Redis | 取决于失效广播 | Redis 故障、广播丢失、凭据保护新问题 |
+| JWT + 每请求 revision/status 校验 | 通常 1 次 | 可做到近实时 | 省 token 查询，不省用户安全状态查询 |
+
+**Mongo 读走 secondary 不建议用于当前认证判定**：
+
+- 刚禁用用户/吊销 token/轮换 keys 后，**secondary 可能尚未复制**，旧凭据继续被接受
+- 新 token 也可能暂时"查不到"
+- `majority` 写确认**不能自动**让普通 secondary 读具备"读己之写/最新读"语义
+- 强行用 causal session、afterClusterTime 等机制，复杂度和尾延迟会增加
+- 现有实现未设 readPreference，**默认 primary 符合强一致校验意图**
+
+**作者设计的渐进路径（从最便宜到最贵）**：
+
+1. **保持现状语义，先做 Mongo 优化（最便宜）**
+   - 保持每请求 2 次回源
+   - **验证 token 精确索引、用户身份查询索引、连接池、Mongo P95 和主库容量**
+   - 收益：不引入任何撤销窗口、不改安全模型
+   - 代价：读压仍与请求量线性增长
+2. **本地 LRU，TTL 5-30 秒（低成本、明确降级）**
+   - 缓存完整身份，过期回源；或只缓存 token，以较小风险换一半查询削减
+   - 收益：高命中时减少 50%-100% Mongo 读、实现快
+   - 代价：必须正式接受并记录最长 TTL 的封禁/轮换延迟；多节点缓存不一致
+   - 适合 Mongo 已成为证实的瓶颈、且业务能接受"≤30 秒撤销"的情况
+3. **本地 LRU + Redis 版本化失效（较贵，兼顾性能和近实时）**
+   - 用户记录维护 `auth_revision`
+   - 轮换 key/改密码/禁用/登出时，事务性更新版本/撤销记录
+   - 通过 Redis Stream/PubSub 广播
+   - 每个节点立即删除用户及 token 的本地缓存
+   - 设置较短 TTL 作为漏消息兜底
+   - 收益：通常命中本地、Mongo 读接近零，撤销窗口压到事件传播时间
+   - 代价：新增 Redis 高可用、消息可靠投递/重放/乱序处理、监控告警和故障降级
+   - **不能承诺数学意义的"绝对零窗口"**，除非关键请求再同步校验版本
+
+**核心结论**：**不要为了"去掉 Mongo"直接换 JWT 或 secondary 读**。先量化 Mongo 是否真是瓶颈；若要缓存，**先明确撤销 SLA**。当前实现最保守 SLA：用户状态或凭据一变，下一请求即重新判定。
+
+**遗留薄弱点**（已识别但当前未实现）：
+
+- **无生产压测数据**——具体 QPS、P95、Mongo 容量、用户量级、文档数全部未知
+- **token 查询索引和 user 查询的 `$or` 索引未提供执行计划证据**——慢查询风险未量化
+- **连接池 `maxPoolSize` 未显式配置**——并发上限依赖 PyMongo 默认值
+- **无 Mongo 熔断器或降级缓存**——慢/不可用时表现为"卡很久"而非"快速 503"
+- **驱动层超时较大**（serverSelectionTimeoutMS=15s, socketTimeoutMS=120s）——单次失败可能拖很久
+- **审计写默认关闭**——启用后会增加 majority journal 写和索引维护压力，与认证读叠加在 primary 上
+- **缓存路线全靠预期收益**——没有实测数据支撑任何方案的"省钱"程度
+- **撤销 SLA 未明确文档化**——目前"下一请求失效"是隐式承诺，但若改缓存方案必须显式重写为"≤30 秒生效"或"≤5 分钟生效"
+- **JWT 路线风险**：当前"下一请求失效"语义无法用纯 JWT 还原，除非引入额外状态查询——但这又回到 Mongo/Redis 查询
+
+
 ### 限流
 
 - **自研 FastAPI/Starlette 中间件 + 进程内 Token Bucket**
