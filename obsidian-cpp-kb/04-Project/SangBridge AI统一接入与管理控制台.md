@@ -465,6 +465,90 @@ ResourceDetail(route.params.id)
 
 **已知薄弱点**：仓库 Router `GET /repos?limit=&after=` 集成测试；后端 exact-page 契约；空页但 `truncated=true`、`after` 不前进等异常契约；三页以上翻页和回退；仓库切换后的旧请求覆盖；搜索与翻页并发；S3 token 失效/变化；以及上游重叠数据的去重策略。
 
+#### AK/SK 加密管理（已深入理解，P0 薄弱点 #1）
+
+> 详见 [[#关键架构薄弱点]] #1。这部分把"为什么是 P0"展开成具体机制 + 风险 + 应急链路。
+
+**密钥存储链路**：
+
+```text
+/sf/etc/eds_secrets.yml  (encryption.aes_cbc_key: <16-byte AES-128>)
+  → /usr/bin/phxcp_runtime get encryption.aes_cbc_key
+  → /sf/bin/sangbridge_env_wrapper.sh
+  → export SANGBRIDGE_EDS_AES_CBC_KEY=<key>
+  → exec /usr/local/bin/sangbridge-server
+  → service 启动期读取环境变量
+  → load_runtime_secrets() 强制校验 16 字节 ASCII
+  → AuthProvider 解密 cluster-manager.user.keys[*].secret_key
+```
+
+**关键事实**：
+
+- 密钥通过 systemd 的 wrapper 注入到进程环境变量，**不写入** `/etc/sangbridge/config.yml`、数据库或应用日志
+- 启动时强制 16 字节校验，缺失/长度不对**直接启动失败**
+- SK **不是**启动时一次性解密，而是**每次受保护请求都动态解密**——登录只计算 user.keys 指纹
+- 解密后的 SK 只存在当前请求的进程内存，**不写回** `sangbridge.tokens`
+- AES key 缺失或解密失败 → Identity 中 AK/SK 为空 → VCS 返回 `VCS-CREDENTIALS-MISSING`
+
+**轮换策略**：
+
+- **不定期轮换**——被动检测 + 立即使旧登录态失效
+- 触发：外部修改 `user.keys[]` → SangBridge 下次请求立即发现
+- 范围：单个 `cluster-manager.user.keys[]` 为单位
+- 轮换后该用户 `sb_auth` token 被删除，响应 `401 auth_credentials_rotated`，必须重新登录
+- **没有双凭据平滑期**——SangBridge 不实现"旧、新凭据同时被同一登录态接受"
+- **安全轮换操作顺序**（强制重新登录换取安全）：
+  1. 在 RGW / cluster-manager 侧创建新 AK/SK
+  2. 更新该用户的 `keys[]`，确保新 key 是 SangBridge 将优先选取的第一把有效 key
+  3. 预期该用户所有 SangBridge 会话被强制重新登录
+  4. 确认新登录后的 VCS 操作成功
+  5. 再撤销旧 key
+- **不混为一谈**：平台 `phxcp_runtime rekey` 轮换的是本机 runtime 配置文件的保护密钥（AES-256-GCM），**不会**自动改变 `encryption.aes_cbc_key` 明文值，**也不会**重加密 Mongo 里的 `user.keys[].secret_key`
+
+**失守的爆炸半径**：
+
+- 一个节点 root 失守 = **高概率"全体用户 SK 的解密能力泄漏"**（不是只影响该节点）
+  - 原因：`cluster-manager.user` 在集群共享 Mongo；任意接管 VIP 的 SangBridge / cluster-manager 节点必须能解同一批 `keys[]`
+  - `/sf/etc/phxcp_runtime.key` 每节点不同，但 `encryption.aes_cbc_key` 必须是集群内一致（否则各节点解不出同一份共享数据）
+- **检测能力不足**（应假设无告警下已失守）：
+  - 没有密钥访问审计 / FIM、HSM / KMS 取钥审计、`phxcp_runtime get` 异常告警、SIEM / EDR 联动
+  - 现有可观测性（请求日志、进程存活、IP 不匹配、`user.keys` 变更、签名请求审计）只能发现异常使用，**不能可靠发现"攻击者已复制 AES key"**
+  - **应将节点 root 失守视作高优先级安全事件**，不能等 SangBridge 自己报警
+- 现有 rekey ≠ 轮换用户 SK 解密 key——仅 `phxcp_runtime rekey` 不足以止血
+
+**应急链路（仓库无完整 runbook，需平台/运维/对象存储团队协同）**：
+
+1. 发现/确认节点失守
+2. 隔离受侵节点、摘除 VIP / 停止相关服务、保全证据
+3. 评估 Mongo 与运行时密钥是否也已暴露
+4. 轮换受影响用户的 RGW AK/SK，并撤销旧 AK/SK
+5. 生成新的 `encryption.aes_cbc_key`
+6. 使用旧 key 解密、使用新 key 重加密所有受影响的 `user.keys[].secret_key`
+7. 将新的运行时配置安全分发到各节点
+8. 各节点执行 `runtime rekey`，重启 cluster-manager / SangBridge 等依赖方
+9. 吊销 SangBridge token、验证新登录与 VCS SigV4
+10. 复盘并监控旧 AK/SK 是否还有使用痕迹
+
+**应急处置对旧 sb_auth cookie 的影响**：
+
+| 处置动作 | 旧 sb_auth cookie 是否仍可用 |
+|---|---|
+| 仅重启 SangBridge / VIP 漂移 | ✓ 可继续使用（token 在共享 Mongo） |
+| 只执行 runtime rekey，业务 CBC key 不变 | ✓ 通常可继续使用；但**不足以应对** AES-CBC key 已泄漏 |
+| 修改任一用户 `keys[]` | ✗ 该用户下次请求即 `401 auth_credentials_rotated`，必须重登 |
+| 全员重发 AK/SK 或全量重加密后 `keys[]` 改变 | ✗ 所有活跃用户会被迫重新登录 |
+| 主动删除/吊销 `sangbridge.tokens` | ✗ 对应 cookie 立即失效，必须重登 |
+
+**关键洞察**：在完成上游 RGW 旧 AK/SK 撤销前，**攻击者已复制的旧 AK/SK 仍可能直接对 phxoss 有效**；SangBridge token 失效本身**不能撤销被盗的底层对象存储凭据**。
+
+**遗留薄弱点**（已识别但当前未实现）：
+
+- 仓库无完整自动化的"一键全局 AES-CBC key 轮换" runbook 或演练记录
+- 关键路径（"批量重加密 Mongo 用户 SK、分发新 CBC key、全局 token 吊销"）在当前仓库里没看到完整自动化
+- 节点 root 失守无直接检测能力（应假设无告警下已经失守，需主动监控 + 演练）
+
+
+
 ### UniView 模块
 
 > **状态**：待补全——目前掌握信息有限（只通过 UnivSrvdClient 接入）。需要后续梳理：
