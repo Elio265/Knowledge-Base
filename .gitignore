@@ -5,3 +5,12 @@
 # Obsidian community plugins are local tooling artifacts
 .obsidian/community-plugins.json
 .obsidian/plugins/
+
+# Canva editing scratch files (调试用临时脚本)
+.canva_*.mjs
+
+# Resume scripts and outputs (临时简历工具)
+简历/
+
+# Personal local helper scripts
+git_pull.ps1
